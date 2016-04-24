@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hdevelop file_version="1.1" halcon_version="12.0.1">
+<procedure name="main">
+<interface/>
+<body>
+<c>* count_dice_dots4.hdev</c>
+<c></c>
+<c>* turn off automatic output into the graphics window</c>
+<l>dev_update_window('off')</l>
+<c></c>
+<c>* close any previously open windows</c>
+<l>dev_close_window()</l>
+<c></c>
+<c>* read in the dice image</c>
+<l>read_image(imgOriginal, 'dice.png')</l>
+<c></c>
+<c>* get the width and height of the dice image so we can open the window to the correct size in the next line</c>
+<l>get_image_size(imgOriginal, imageWidth, imageHeight)</l>
+<c></c>
+<c>* open a window</c>
+<l>dev_open_window(150, 500, imageWidth, imageHeight, 'black', windowHandle)</l>
+<c></c>
+<c>* show the image</c>
+<l>dev_display(imgOriginal)</l>
+<c></c>
+<c>* threshold out the white dice from the black background</c>
+<l>threshold(imgOriginal, regThresh, 80, 255)</l>
+<c></c>
+<c>* breakout the threshold region into an array of separate regions, one for each individual die</c>
+<l>connection(regThresh, dieRegions)</l>
+<c></c>
+<c>* find the number of holes, which is the same as the number of dots, in each die region</c>
+<l>connect_and_holes(dieRegions, numConnected, numDotsOnEachDie)</l>
+<c></c>
+<c>* generate an array of contours corresponding to the array of die regions</c>
+<l>gen_contour_region_xld(dieRegions, dieContours, 'border')</l>
+<c></c>
+<c>* get contours for both the die and the dots,</c>
+<c>* then subtract the die contours from the die and dot contours to get just the dot contours</c>
+<l>gen_contour_region_xld(dieRegions, dieAndDotContours, 'border_holes')</l>
+<l>symm_difference_closed_contours_xld(dieAndDotContours, dieContours, dotContours)</l>
+<c></c>
+<c>* declare a string constant for the dark green color</c>
+<l>dark_green := '#00C800'</l>
+<c></c>
+<c>* set line width to 3, then draw the die contours in dark green</c>
+<l>dev_set_line_width(3)</l>
+<l>dev_set_color(dark_green)</l>
+<l>dev_display(dieContours)</l>
+<c></c>
+<c>* set line width to 3, then draw the dot contours in red</c>
+<l>dev_set_line_width(3)</l>
+<l>dev_set_color('red')</l>
+<l>dev_display(dotContours)</l>
+<c></c>
+<c>* for each die get the center X and Y values, this function also gives the area of each die but we don't need to use that in this program</c>
+<l>area_center(dieRegions, dieAreas, dieCenterYs, dieCenterXs)</l>
+<c></c>
+<c>* get the bounding rect for each die, this function gives the top left point X and Y, and the bottom right point X and Y</c>
+<l>smallest_rectangle1(dieRegions, dieRectY1s, dieRectX1s, dieRectY2s, dieRectX2s)</l>
+<c></c>
+<c>* set the font, then write the dot count next to each die in red</c>
+<l>set_display_font(windowHandle, 40, 'mono', 'true', 'false')</l>
+<l>disp_message(windowHandle, numDotsOnEachDie, 'image', dieCenterYs, dieCenterXs + ((dieRectX2s - dieRectX1s) * 0.65), 'red', 'false')</l>
+<c></c>
+<c>* get the total dot count</c>
+<l>totalDotCount := sum(numDotsOnEachDie)</l>
+<c></c>
+<c>* write the total dot count at the top left of the image in green</c>
+<l>disp_message(windowHandle, 'Sum: ' + totalDotCount, 'image', imageHeight * 0.02, imageWidth * 0.02, dark_green, 'false')</l>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+</body>
+<docu id="main">
+<parameters/>
+</docu>
+</procedure>
+</hdevelop>

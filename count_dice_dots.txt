@@ -1,0 +1,73 @@
+* count_dice_dots4.hdev
+
+* turn off automatic output into the graphics window
+dev_update_window('off')
+
+* close any previously open windows
+dev_close_window()
+
+* read in the dice image
+read_image(imgOriginal, 'dice.png')
+
+* get the width and height of the dice image so we can open the window to the correct size in the next line
+get_image_size(imgOriginal, imageWidth, imageHeight)
+
+* open a window
+dev_open_window(150, 500, imageWidth, imageHeight, 'black', windowHandle)
+
+* show the image
+dev_display(imgOriginal)
+
+* threshold out the white dice from the black background
+threshold(imgOriginal, regThresh, 80, 255)
+
+* breakout the threshold region into an array of separate regions, one for each individual die
+connection(regThresh, dieRegions)
+
+* find the number of holes, which is the same as the number of dots, in each die region
+connect_and_holes(dieRegions, numConnected, numDotsOnEachDie)
+
+* generate an array of contours corresponding to the array of die regions
+gen_contour_region_xld(dieRegions, dieContours, 'border')
+
+* get contours for both the die and the dots,
+* then subtract the die contours from the die and dot contours to get just the dot contours
+gen_contour_region_xld(dieRegions, dieAndDotContours, 'border_holes')
+symm_difference_closed_contours_xld(dieAndDotContours, dieContours, dotContours)
+
+* declare a string constant for the dark green color
+dark_green := '#00C800'
+
+* set line width to 3, then draw the die contours in dark green
+dev_set_line_width(3)
+dev_set_color(dark_green)
+dev_display(dieContours)
+
+* set line width to 3, then draw the dot contours in red
+dev_set_line_width(3)
+dev_set_color('red')
+dev_display(dotContours)
+
+* for each die get the center X and Y values, this function also gives the area of each die but we don't need to use that in this program
+area_center(dieRegions, dieAreas, dieCenterYs, dieCenterXs)
+
+* get the bounding rect for each die, this function gives the top left point X and Y, and the bottom right point X and Y
+smallest_rectangle1(dieRegions, dieRectY1s, dieRectX1s, dieRectY2s, dieRectX2s)
+
+* set the font, then write the dot count next to each die in red
+set_display_font(windowHandle, 40, 'mono', 'true', 'false')
+disp_message(windowHandle, numDotsOnEachDie, 'image', dieCenterYs, dieCenterXs + ((dieRectX2s - dieRectX1s) * 0.65), 'red', 'false')
+
+* get the total dot count
+totalDotCount := sum(numDotsOnEachDie)
+
+* write the total dot count at the top left of the image in green
+disp_message(windowHandle, 'Sum: ' + totalDotCount, 'image', imageHeight * 0.02, imageWidth * 0.02, dark_green, 'false')
+
+
+
+
+
+
+
+
