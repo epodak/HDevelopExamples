@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hdevelop file_version="1.1" halcon_version="12.0.1">
+<procedure name="main">
+<interface/>
+<body>
+<c>* camera_calibration_multi_image2.hdev</c>
+<c></c>
+<l>dev_close_window()</l>
+<l>dev_open_window(75, 250, 1280, 960, 'black', windowHandle)</l>
+<l>dev_update_off()</l>
+<l>dev_set_draw('margin')</l>
+<l>dev_set_line_width(3)</l>
+<l>set_display_font (windowHandle, 22, 'mono', 'true', 'false')</l>
+<c></c>
+<c>* calibrate the camera</c>
+<l>create_calib_data('calibration_object', 1, 1, calibDataID)</l>
+<c></c>
+<l>camParams := [0.012, 0, 0.00000375, 0.00000375, 640, 480, 1280, 960]</l>
+<l>set_calib_data_cam_param(calibDataID, 0, 'area_scan_division', camParams)</l>
+<c></c>
+<l>set_calib_data_calib_object(calibDataID, 0, 'calplate_80mm.cpd')</l>
+<c></c>
+<c>* loop through the 7 image files, 'calib_image_01.png' through 'calib_image_07.png'</c>
+<l>for i := 1 to 7 by 1</l>
+<l>    read_image(imgOriginal, 'calib_image_0' + i + '.png')</l>
+<l>    dev_display (imgOriginal)</l>
+<c>    </c>
+<l>    find_calib_object(imgOriginal, calibDataID, 0, 0, i, [], [])</l>
+<c>    </c>
+<l>    get_calib_data_observ_contours(xldContours, calibDataID, 'caltab', 0, 0, i)</l>
+<c>    </c>
+<l>    get_calib_data_observ_points(calibDataID, 0, 0, i, rows, columns, indices, startPoses)</l>
+<c>    </c>
+<l>    dev_set_color('green')</l>
+<l>    dev_display(xldContours)</l>
+<c>    </c>
+<l>    dev_set_color('red')</l>
+<l>    disp_circle(windowHandle, rows, columns, gen_tuple_const(|rows|, 1.5))</l>
+<l>endfor</l>
+<c></c>
+<l>calibrate_cameras(calibDataID, errors)</l>
+<c></c>
+<l>get_calib_data(calibDataID, 'camera', 0, 'params', camParam)</l>
+<c></c>
+<c>* the reference image, i.e., the image in which the calibration plate is located on the ruler is the first image</c>
+<l>get_calib_data(calibDataID, 'calib_obj_pose', [0, 1], 'pose', poseData)</l>
+<c></c>
+<c>* to take the thickness of the calibration plate into account, the z-value of the origin given by the camera pose has to be translated by the thickness of the calibration plate</c>
+<c>* deactivate the following line if you do not want to add the correction</c>
+<l>set_origin_pose(poseData, 0, 0, 0.002, poseData)</l>
+<c></c>
+<c>* measure the distance between the pitch lines</c>
+<l>read_image (imgRuler, 'ruler.png')</l>
+<l>dev_display (imgRuler)</l>
+<c></c>
+<l>gen_measure_rectangle2 (690, 680, rad(-0.25), 480, 8, 1280, 960, 'bilinear', measureHandle)</l>
+<c></c>
+<l>measure_pairs (imgRuler, measureHandle, 0.5, 5, 'all', 'all', RowEdgeFirst, ColumnEdgeFirst, AmplitudeFirst, RowEdgeSecond, ColumnEdgeSecond, AmplitudeSecond, IntraDistance, InterDistance)</l>
+<c></c>
+<l>rows := (RowEdgeFirst + RowEdgeSecond) / 2.0</l>
+<l>cols := (ColumnEdgeFirst + ColumnEdgeSecond) / 2.0</l>
+<c></c>
+<l>disp_cross(windowHandle, rows, cols, 20, rad(45))</l>
+<c></c>
+<l>image_points_to_world_plane (camParam, poseData, rows, cols, 'mm', x1s, y1s)</l>
+<c></c>
+<l>distance_pp(x1s[0:11], y1s[0:11], x1s[1:12], y1s[1:12], distances)</l>
+<c></c>
+<l>tuple_mean(distances, meanDistance)</l>
+<c></c>
+<l>tuple_deviation(distances, deviationDistance)</l>
+<c></c>
+<l>disp_message(windowHandle, 'Mean distance: ' + meanDistance$'.3f' + 'mm +/- ' + deviationDistance$'.3f' + 'mm', 'window', 30, 60, 'yellow', 'false')</l>
+<c></c>
+<l>close_measure(measureHandle)</l>
+<c></c>
+<l>clear_calib_data(calibDataID)</l>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+</body>
+<docu id="main">
+<parameters/>
+</docu>
+</procedure>
+</hdevelop>
