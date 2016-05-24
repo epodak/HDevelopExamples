@@ -51,7 +51,7 @@ dev_display(xldModel)
 *stop()
 
 * next we will scale up the DXF XLD model, then display again . . .
-XLD_SCALE_FACTOR := 100
+XLD_SCALE_FACTOR := 13.158
 
 xldModelWidthScaled := xldModelWidth * XLD_SCALE_FACTOR
 xldModelHeightScaled := xldModelHeight * XLD_SCALE_FACTOR
@@ -60,96 +60,58 @@ hom_mat2d_identity(transformMatrixScale)
 hom_mat2d_scale_local(transformMatrixScale, XLD_SCALE_FACTOR, XLD_SCALE_FACTOR, transformMatrixScale)
 affine_trans_contour_xld(xldModel, xldModelScaled, transformMatrixScale)
 
+dev_close_window()
 dev_open_window(150, 300, xldModelWidthScaled, xldModelHeightScaled, 'black', windowHandle)
 dev_display(xldModelScaled)
 *stop()
 
-* read in our 4 images
-read_image(image1, '7_segment_pass.png')
-read_image(image2, '7_segment_fail_1.png')
-read_image(image3, '7_segment_fail_2.png')
-read_image(image4, '7_segment_fail_3.png')
+* read in our image
+read_image(imgOriginal, '7_segment_pass.png')
 
 * get the width and height of the image so we can open the window to the correct size in the next line
-get_image_size(image1, imageWidth, imageHeight)
+get_image_size(imgOriginal, imageWidth, imageHeight)
 
 * open a window, scale the window down to 1/2 size so we can see the entire image
+dev_close_window()
 dev_open_window(100, 100, imageWidth / 2, imageHeight / 2, 'black', windowHandle)
 
-* show the images
-dev_display(image1)
-*stop()
-dev_display(image2)
-*stop()
-dev_display(image3)
-*stop()
-dev_display(image4)
-*stop()
+* show the image
+dev_display(imgOriginal)
 
-threshold(image1, regionOfImage1, 80, 255)
+* create the shape model from the DXF xld contours
+create_shape_model_xld(xldModelScaled, 'auto', rad(-5.0), rad(10.0), 'auto', 'auto', 'ignore_local_polarity', 5, modelID)
 
-union1(regionOfImage1, regionOfImage1)
+* find the model in the image
+find_shape_model(imgOriginal, modelID, rad(-5.0), rad(10), 0.5, 1, 0.5, 'least_squares', 0, 0.9, centerYs, centerXs, angles, scores)
 
-smallest_rectangle1(regionOfImage1, y1, x1, y2, x2)
+* center the match and visualize
+vector_angle_to_rigid(0, 0, 0, centerYs, centerXs, angles, homMat2D)
+get_shape_model_contours(modelContours, modelID, 1)
+affine_trans_contour_xld(modelContours, xldModel, homMat2D)
 
-*erosion_rectangle1(regionOfImage1, regionOfImage1, 3, 3)
-*erosion_rectangle1(regionOfImage1, regionOfImage1, 3, 3)
+* call to set_shape_model_metric, note there is no return value (data is internally stored with modelID ??)
+set_shape_model_metric(imgOriginal, modelID, homMat2D, 'use_polarity')
 
-region_to_bin(regionOfImage1, binImage, 255, 0, imageWidth, imageHeight)
+* read an image
+read_image(imgOriginal, '7_segment_fail_1')
 
-crop_rectangle1(binImage, imageCropped, y1, x1, y2, x2)
+* find the shape model again, will be slightly faster this time due to previous call to set_shape_model_metric
+find_shape_model(imgOriginal, modelID, rad(-5.0), rad(10), 0.5, 1, 0.5, 'least_squares', 0, 0.9, centerYs, centerXs, angles, scores)
 
-croppedImageWidth := y2 - y1
-croppedImageHeight := x2 - x1
+* center the match and visualize
+vector_angle_to_rigid(0, 0, 0, centerYs, centerXs, angles, homMat2D)
+get_shape_model_contours(modelContours, modelID, 1)
+affine_trans_contour_xld(modelContours, xldModel, homMat2D)
 
-hom_mat2d_identity(translationMatrix2)
-hom_mat2d_scale_local(translationMatrix2, xldModelWidthScaled / croppedImageWidth, xldModelHeightScaled / croppedImageHeight, translationMatrix2)
+* try converting both to regions, find the difference
+threshold(imgOriginal, regThresh, 75, 255)
+gen_region_contour_xld(xldModel, regModel, 'filled')
+symm_difference(regThresh, regModel, regDiff)
+connection(regDiff, regConnected)
+select_shape(regConnected, selectedRegions, 'inner_radius', 'and', 4, 99999999)
 
-*affine_trans_image(imageCropped, imageCropped, translationMatrix2, 'constant', 'true')
-*affine_trans_image_size(imageCropped, imageCropped, translationMatrix2, 'constant', xldModelWidthScaled, xldModelHeightScaled)
-affine_trans_image_size(imageCropped, imageCropped, translationMatrix2, 'constant', xldModelHeightScaled * 1.05, xldModelWidthScaled * 1.05)
-
-hom_mat2d_identity(matrixSlightShift)
-hom_mat2d_translate_local(matrixSlightShift, xldModelWidthScaled * 0.025, xldModelHeightScaled * 0.025, matrixSlightShift)
-affine_trans_image(imageCropped, imageCropped2, matrixSlightShift,'constant', 'false')
-
-stop()
-
-create_shape_model_xld(xldModelScaled, 'auto', 0, rad(360), 'auto', 'no_pregeneration', 'ignore_local_polarity', 10, shapeModel)
-
-get_shape_model_contours(shapeModelContours, shapeModel, 1)
-
-find_shape_model(imageCropped2, shapeModel, 0, rad(360), 0.7, 0, 0.5, 'interpolation', 0, 0.9, centerYs, centerXs, angles, scores)
-
-gen_empty_obj(affineTransformedRegions)
-
-for i := 0 to |centerYs| - 1 by 1
-    
-    * instantiate a transform matrix
-    hom_mat2d_identity(translationMatrix)
-    
-    * update matrix to rotate
-    hom_mat2d_rotate(translationMatrix, angles[i], 0, 0, translationMatrix)
-    
-    * update matrix to translate
-    hom_mat2d_translate(translationMatrix, centerYs[i], centerXs[i], translationMatrix)
-    
-    * perform affine transform
-    affine_trans_contour_xld(shapeModelContours, affineTransformedContour, translationMatrix)
-    
-    * convert XLD contour into region
-    gen_region_contour_xld(affineTransformedContour, affineTransformedRegion, 'margin')
-    
-    * add affine transformed region to array of affine transformed regions
-    concat_obj(affineTransformedRegions, affineTransformedRegion, affineTransformedRegions)
-    
-endfor
-
-dev_set_draw('margin')
-dev_set_line_width(6)
-dev_display(affineTransformedRegions)
-
-
+* erosion_rectangle1(regDiff, regDiff, 5, 5)
+* dilation_rectangle1(regDiff, regDiff, 5, 5)
 
 
 
