@@ -12,10 +12,12 @@ Public Class frmMain
     Const XLD_SCALE_FACTOR As Double = 13.158
 
     Dim hwDxf As HWindow = Nothing
-    Dim blnNeedToCallShapeModelMetric As Boolean = True
     Dim imgOriginal As New HImage()
     Dim xldModel As New HXLDCont()
-    Dim hwXldModel As HWindow = Nothing
+    Dim hwXldMatches As HWindow = Nothing
+    Dim hShapeModel As HShapeModel
+    Dim needToTrain As Boolean = True
+    Dim needToCallShapeModelMetric As Boolean = True
 
     Private Sub btnOpenImage_Click(sender As Object, e As EventArgs) Handles btnOpenImage.Click
         hWindowControl.Dock = DockStyle.Fill        're-doc the HWindowControl (in case the function was already called once, its necessary to un-dock, see later in the function)
@@ -139,6 +141,9 @@ Public Class frmMain
         
         xldModelScaled.DispObj(hwDxf)
         xldModel = xldModelScaled
+
+        needToTrain = True
+        needToCallShapeModelMetric = True
     End Sub
 
     Function resizeImageWhileMaintainingAspectRatio(imgOrig As HImage, intWindowControlWidth As Integer, intWindowControlHeight As Integer) As HImage
@@ -177,43 +182,79 @@ Public Class frmMain
             Return
         End If
 
-        If (Not hwXldModel Is Nothing) Then
-            hwXldModel.CloseWindow()
+        If (Not hwXldMatches Is Nothing) Then
+            hwXldMatches.CloseWindow()
         End If
 
-        Dim hShapeModel As New HShapeModel()
-
-        hShapeModel.CreateShapeModelXld(xldModel, "auto", -5.0 * (Math.PI * 180.0), 10.0 * (Math.PI * 180.0), "auto", "auto", "ignore_local_polarity", 5)
-
+        If (needToTrain) Then
+            hShapeModel = New HShapeModel()
+            hShapeModel.CreateShapeModelXld(xldModel, "auto", -5.0 * (Math.PI * 180.0), 10.0 * (Math.PI * 180.0), "auto", "auto", "ignore_local_polarity", 5)
+            needToTrain = False
+        End If
+        
         Dim centerYs As New HTuple()
         Dim centerXs As New HTuple()
         Dim angles As New HTuple()
         Dim scores As New HTuple()
 
-        hShapeModel.FindShapeModel(imgOriginal, -5.0 * (Math.PI * 180.0), 10.0 * (Math.PI * 180.0), 0.5, 1, 0.5, "least_squares", 0, 0.9, centerYs, centerXs, angles, scores)
+        hShapeModel.FindShapeModel(imgOriginal, -5.0 * (Math.PI * 180.0), 10.0 * (Math.PI * 180.0), 0.5, 0, 0.5, "least_squares", 0, 0.9, centerYs, centerXs, angles, scores)
 
-        Dim homMat2D As New HHomMat2D()
-        homMat2D.HomMat2dIdentity()
-        homMat2D.VectorAngleToRigid(New HTuple(0), New HTuple(0), New HTuple(0), centerYs, centerXs, angles)
-        Dim modelContours As HXLDCont = hShapeModel.GetShapeModelContours(1)
-        xldModel = modelContours.AffineTransContourXld(homMat2D)
-        
+        If (scores.TupleLength() <= 0) Then                  'if at least one match was found
+            lblChosenFile.Text = "no matches found"
+            Return
+        End If
+
+        'set up window to visualize results
         Dim htOriginalImageWidth As HTuple = Nothing
         Dim htOriginalImageHeight As HTuple = Nothing
-
         imgOriginal.GetImageSize(htOriginalImageWidth, htOriginalImageHeight)
+        hwXldMatches = New HWindow(50, 150, htOriginalImageWidth, htOriginalImageHeight, 0, "visible", "")
+        hwXldMatches.SetPart(0, 0, htOriginalImageHeight - 1, htOriginalImageWidth - 1)
 
-        hwXldModel = New HWindow(150, 300, htOriginalImageWidth, htOriginalImageHeight, 0, "visible", "")
-        hwXldModel.SetPart(0, 0, htOriginalImageHeight - 1, htOriginalImageWidth - 1)
-        hwXldModel.SetLineWidth(2)
-        hwXldModel.SetColor("#00C800")
-        hwXldModel.DispXld(xldModel)
+        Dim shapeMatchRegions As New List(Of HRegion)
 
-        hShapeModel.SetShapeModelMetric(imgOriginal, homMat2D, "use_polarity")
-        blnNeedToCallShapeModelMetric = False
+        For i As Integer = 0 To scores.Length - 1
 
+            'center the match
+            Dim homMat2D As New HHomMat2D()
+            homMat2D.HomMat2dIdentity()
+            homMat2D.VectorAngleToRigid(New HTuple(0), New HTuple(0), New HTuple(0), centerYs.Item(i), centerXs.Item(i), angles.Item(i))
+            Dim modelContours As HXLDCont = hShapeModel.GetShapeModelContours(1)
+            Dim xldMatch As HXLDCont = modelContours.AffineTransContourXld(homMat2D)
+            Dim regMatch As HRegion = xldMatch.GenRegionContourXld("filled")
 
+            shapeMatchRegions.Add(regMatch)
 
+            If (needToCallShapeModelMetric) Then
+                hShapeModel.SetShapeModelMetric(imgOriginal, homMat2D, "use_polarity")
+                needToCallShapeModelMetric = False
+            End If
+
+            'visualize the result
+            hwXldMatches.SetLineWidth(2)
+            hwXldMatches.SetColor("#00C800")
+            hwXldMatches.DispXld(xldMatch)
+        Next
+
+        Dim regCombinedMatches As New HRegion()
+
+        If (shapeMatchRegions.Count = 1) Then
+            regCombinedMatches = shapeMatchRegions(0)
+        ElseIf (shapeMatchRegions.Count > 1) Then
+            For i = 1 To shapeMatchRegions.Count - 1
+                shapeMatchRegions(0) = shapeMatchRegions(0).Union2(shapeMatchRegions(i))
+            Next
+            regCombinedMatches = shapeMatchRegions(0)
+        End If
+        
+        Dim regThresh As HRegion = imgOriginal.Threshold(75.0, 255.0)
+        Dim regDiff As HRegion = regThresh.SymmDifference(regCombinedMatches)
+        Dim regDiffs As HRegion = regDiff.Connection()
+        Dim regFilteredDiffs As HRegion = regDiffs.SelectShape("inner_radius", "and", 4.0, 9999999.0)
+        
+        hwXldMatches.SetLineWidth(3)
+        hwXldMatches.SetColor("red")
+        hwXldMatches.DispRegion(regFilteredDiffs)
 
     End Sub
 
