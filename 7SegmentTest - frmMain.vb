@@ -15,6 +15,7 @@ Public Class frmMain
     Dim blnNeedToCallShapeModelMetric As Boolean = True
     Dim imgOriginal As New HImage()
     Dim xldModel As New HXLDCont()
+    Dim hwXldModel As HWindow = Nothing
 
     Private Sub btnOpenImage_Click(sender As Object, e As EventArgs) Handles btnOpenImage.Click
         hWindowControl.Dock = DockStyle.Fill        're-doc the HWindowControl (in case the function was already called once, its necessary to un-dock, see later in the function)
@@ -176,6 +177,10 @@ Public Class frmMain
             Return
         End If
 
+        If (Not hwXldModel Is Nothing) Then
+            hwXldModel.CloseWindow()
+        End If
+
         Dim hShapeModel As New HShapeModel()
 
         hShapeModel.CreateShapeModelXld(xldModel, "auto", -5.0 * (Math.PI * 180.0), 10.0 * (Math.PI * 180.0), "auto", "auto", "ignore_local_polarity", 5)
@@ -192,20 +197,24 @@ Public Class frmMain
         homMat2D.VectorAngleToRigid(New HTuple(0), New HTuple(0), New HTuple(0), centerYs, centerXs, angles)
         Dim modelContours As HXLDCont = hShapeModel.GetShapeModelContours(1)
         xldModel = modelContours.AffineTransContourXld(homMat2D)
-
-        Dim hWindow As HWindow = hWindowControl.HalconWindow
-        hWindow.SetLineWidth(3)                 'set line width to 3, then draw the dot contours in red
-        hWindow.SetColor("red")
-        hWindow.DispXld(xldModel)
-
-        Dim rows As New HTuple()
-        Dim cols As New HTuple()
-        Dim pointOrders As New HTuple()
-
-        Dim area As HTuple = xldModel.AreaCenterXld(rows, cols, pointOrders)
         
-        hWindow.DispXld(xldModel)
-        
+        Dim htOriginalImageWidth As HTuple = Nothing
+        Dim htOriginalImageHeight As HTuple = Nothing
+
+        imgOriginal.GetImageSize(htOriginalImageWidth, htOriginalImageHeight)
+
+        hwXldModel = New HWindow(150, 300, htOriginalImageWidth, htOriginalImageHeight, 0, "visible", "")
+        hwXldModel.SetPart(0, 0, htOriginalImageHeight - 1, htOriginalImageWidth - 1)
+        hwXldModel.SetLineWidth(2)
+        hwXldModel.SetColor("#00C800")
+        hwXldModel.DispXld(xldModel)
+
+        hShapeModel.SetShapeModelMetric(imgOriginal, homMat2D, "use_polarity")
+        blnNeedToCallShapeModelMetric = False
+
+
+
+
     End Sub
 
 End Class
