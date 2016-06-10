@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hdevelop file_version="1.1" halcon_version="12.0.1">
+<procedure name="main">
+<interface/>
+<body>
+<c>* two_cameras.hdev</c>
+<c></c>
+<l>dev_update_window('off')</l>
+<l>dev_close_window()</l>
+<c></c>
+<l>open_framegrabber('GigEVision', 0, 0, 0, 0, 0, 0, 'default', -1, 'default', -1, 'false', 'default', '000f315baa31_AlliedVisionTechnologies_MakoG503B', 0, -1, leftAcqHandle)</l>
+<l>open_framegrabber('GigEVision', 0, 0, 0, 0, 0, 0, 'default', -1, 'default', -1, 'false', 'default', '000f315ba546_AlliedVisionTechnologies_MakoG503B', 0, -1, rightAcqHandle)</l>
+<c></c>
+<l>grab_image_start(leftAcqHandle, -1)</l>
+<l>grab_image_start(rightAcqHandle, -1)</l>
+<c></c>
+<l>needToOpenLeftWindow := 1</l>
+<l>needToOpenRightWindow := 1</l>
+<c></c>
+<l>while(true)</l>
+<c>    </c>
+<l>    grab_image_async(imgLeft, leftAcqHandle, -1)</l>
+<c>    </c>
+<l>    if(needToOpenLeftWindow = 1)</l>
+<l>        get_image_size(imgLeft, leftImageWidth, leftImageHeight)</l>
+<l>        dev_open_window(100, 15, leftImageWidth / 2.75, leftImageHeight / 2.75, 'black', windowHandleLeft)</l>
+<l>        needToOpenLeftWindow := 0</l>
+<l>    endif</l>
+<c>    </c>
+<l>    dev_set_window(windowHandleLeft)</l>
+<l>    dev_display(imgLeft)</l>
+<c>    </c>
+<l>    grab_image_async(imgRight, rightAcqHandle, -1)</l>
+<c>    </c>
+<l>    if(needToOpenRightWindow = 1)</l>
+<l>        get_image_size(imgRight, rightImageWidth, rightImageHeight)</l>
+<l>        dev_open_window(100, 23 + (leftImageWidth / 2.75), rightImageWidth / 2.75, rightImageHeight / 2.75, 'black', rightWindowHandle)</l>
+<l>        needToOpenRightWindow := 0</l>
+<l>    endif</l>
+<c>    </c>
+<l>    dev_set_window(rightWindowHandle)</l>
+<l>    dev_display(imgRight)</l>
+<c>    </c>
+<l>endwhile</l>
+<c></c>
+<l>close_framegrabber (rightAcqHandle)</l>
+<l>close_framegrabber (leftAcqHandle)</l>
+<c></c>
+<c></c>
+<c></c>
+</body>
+<docu id="main">
+<parameters/>
+</docu>
+</procedure>
+</hdevelop>

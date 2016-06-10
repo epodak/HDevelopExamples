@@ -1,0 +1,44 @@
+* two_cameras.hdev
+
+dev_update_window('off')
+dev_close_window()
+
+open_framegrabber('GigEVision', 0, 0, 0, 0, 0, 0, 'default', -1, 'default', -1, 'false', 'default', '000f315baa31_AlliedVisionTechnologies_MakoG503B', 0, -1, leftAcqHandle)
+open_framegrabber('GigEVision', 0, 0, 0, 0, 0, 0, 'default', -1, 'default', -1, 'false', 'default', '000f315ba546_AlliedVisionTechnologies_MakoG503B', 0, -1, rightAcqHandle)
+
+grab_image_start(leftAcqHandle, -1)
+grab_image_start(rightAcqHandle, -1)
+
+needToOpenLeftWindow := 1
+needToOpenRightWindow := 1
+
+while(true)
+    
+    grab_image_async(imgLeft, leftAcqHandle, -1)
+    
+    if(needToOpenLeftWindow = 1)
+        get_image_size(imgLeft, leftImageWidth, leftImageHeight)
+        dev_open_window(100, 15, leftImageWidth / 2.75, leftImageHeight / 2.75, 'black', windowHandleLeft)
+        needToOpenLeftWindow := 0
+    endif
+    
+    dev_set_window(windowHandleLeft)
+    dev_display(imgLeft)
+    
+    grab_image_async(imgRight, rightAcqHandle, -1)
+    
+    if(needToOpenRightWindow = 1)
+        get_image_size(imgRight, rightImageWidth, rightImageHeight)
+        dev_open_window(100, 23 + (leftImageWidth / 2.75), rightImageWidth / 2.75, rightImageHeight / 2.75, 'black', rightWindowHandle)
+        needToOpenRightWindow := 0
+    endif
+    
+    dev_set_window(rightWindowHandle)
+    dev_display(imgRight)
+    
+endwhile
+
+close_framegrabber (rightAcqHandle)
+close_framegrabber (leftAcqHandle)
+
+
