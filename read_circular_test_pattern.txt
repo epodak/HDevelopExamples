@@ -1,0 +1,302 @@
+* read_circular_test_pattern.hdev
+
+NUM_CIRCLES := 250
+FILE_NAME := 'Moritex ML-U3514MP9 35 mm F1 1.4 f = 11 36 spokes'
+
+* close any previously open windows
+dev_close_window()
+
+* read in the test pattern image
+read_image(imgOriginal, FILE_NAME + '.png')
+
+rgb1_to_gray(imgOriginal, imgOriginal)
+
+* get the width and height of the test pattern image so we can open the window to the correct size in the next line
+get_image_size(imgOriginal, imageWidth, imageHeight)
+
+* open a window
+dev_open_window(75, 350, imageWidth / 2, imageHeight / 2, 'black', windowHandle)
+
+* show the image
+dev_display(imgOriginal)
+
+crop_white_space(imgOriginal, imgOriginal)
+
+* get image size again to update imageWidth and imageHeight to the cropped values
+get_image_size(imgOriginal, imageWidth, imageHeight)
+
+find_center_point(imgOriginal, centerX, centerY)
+
+* find the number of line pairs
+radius1 := round(centerY / 2)
+
+* three steps to get the circle of pixel values
+gen_circle_contour_xld(xldCircle1, centerY, centerX, radius1, 0, 6.28318, 'positive', 1)
+get_contour_xld(xldCircle1, circleYpoints1, circleXpoints1)
+get_grayval(imgOriginal, circleYpoints1, circleXpoints1, circlePixValues1)
+
+* custom function
+find_num_of_line_pairs(imgOriginal, circlePixValues1, radius1, numOfLinePairs)
+
+* next, determine the largest radius we can use, without going off the edge of the image in any direction
+maxRadiusAllowable := 0
+heightFromCenterToTop := floor(centerY)
+heightFromCenterToBottom := floor(imageHeight - centerY)
+widthFromCenterToLeft := floor(centerX)
+widthFromCenterToRight := floor(imageWidth - centerX)
+
+possibleRadii := [heightFromCenterToTop, heightFromCenterToBottom, widthFromCenterToLeft, widthFromCenterToRight]
+
+tuple_min(possibleRadii, maxRadiusAllowable)
+
+maxRadiusAllowable := floor(maxRadiusAllowable * 0.95)
+
+* make a tuple of radii
+radii := []
+circleIncrementDistance := maxRadiusAllowable / NUM_CIRCLES
+currentRadius := 0
+
+for i := 0 to NUM_CIRCLES - 1 by 1
+    currentRadius := currentRadius + circleIncrementDistance
+    radii := [radii, round(currentRadius)]
+endfor
+
+tuple_inverse(radii, radii)
+
+* now we can find line pair distances in pixels and standard deviations for each circle
+linePairDistancesInPixels := []
+standardDeviations := []
+
+for i := 0 to |radii| - 1 by 1
+    * three steps to get the circle of pixel values
+    gen_circle_contour_xld(xldCircle, centerY, centerX, radii[i], 0, 6.28318, 'positive', 1)
+    get_contour_xld(xldCircle, circleYpoints, circleXpoints)
+    get_grayval(imgOriginal, circleYpoints, circleXpoints, circlePixValues)
+    
+    circumference := 2.0 * 3.14159 * radii[i]
+    linePairDistInPix := circumference / numOfLinePairs
+    linePairDistancesInPixels := [linePairDistancesInPixels, linePairDistInPix]
+    tuple_deviation(circlePixValues, stdDev)
+    standardDeviations := [standardDeviations, stdDev]
+endfor
+
+* next calculate the inverse of each line pair distance in pixels
+inverseOfLinePairDistancesInPixels := []
+
+for i := 0 to |linePairDistancesInPixels| - 1 by 1
+    inverseOfLinePairDistancesInPixels := [inverseOfLinePairDistancesInPixels, (1 / linePairDistancesInPixels[i])]
+endfor
+
+* make a tuple of circle numbers to label each line in our .txt output file
+circleNumbers := []
+for i := 0 to |radii| - 1 by 1
+    circleNumbers := [circleNumbers, i + 1]
+endfor
+tuple_inverse(circleNumbers, circleNumbers)
+
+sumOfAllStdDevs := 0
+sumOfLast20StdDevs := 0
+sumOfLast10StdDevs := 0
+
+avgOfAllStdDevs := 0
+avgOfLast20StdDevs := 0
+avgOfLast10StdDevs := 0
+
+for i := 0 to |radii| - 1 by 1
+    if(circleNumbers[i] <= 10)
+        sumOfLast20StdDevs := sumOfLast20StdDevs + standardDeviations[i]
+        sumOfLast10StdDevs := sumOfLast10StdDevs + standardDeviations[i]
+    elseif(circleNumbers[i] <= 20)
+        sumOfLast20StdDevs := sumOfLast20StdDevs + standardDeviations[i]
+    endif
+    sumOfAllStdDevs := sumOfAllStdDevs + standardDeviations[i]
+endfor
+
+avgOfAllStdDevs := sumOfAllStdDevs / |radii|
+avgOfLast20StdDevs := sumOfLast20StdDevs / |radii|
+avgOfLast10StdDevs := sumOfLast10StdDevs / |radii|
+
+* write data to text file
+open_file(FILE_NAME + '.txt', 'output', fileHandle)
+fwrite_string(fileHandle, FILE_NAME + '\n')
+fwrite_string(fileHandle, '\n')
+fwrite_string(fileHandle, 'numOfLinePairs = ' + numOfLinePairs + '\n')
+fwrite_string(fileHandle, '\n')
+fwrite_string(fileHandle, 'average of all standard deviations = ' + avgOfAllStdDevs + '\n')
+fwrite_string(fileHandle, 'average of last 20 standard deviations = ' + avgOfLast20StdDevs + '\n')
+fwrite_string(fileHandle, 'average of last 10 standard deviations = ' + avgOfLast10StdDevs + '\n')
+fwrite_string(fileHandle, '\n')
+fwrite_string(fileHandle, 'circle number,radius in pix,LP dist in pix,1 / LP dist in pix,std dev\n')
+for i := 0 to |radii| - 1 by 1
+    fwrite_string(fileHandle, circleNumbers[i] + ',' + radii[i] + ',' + linePairDistancesInPixels[i] + ',' + inverseOfLinePairDistancesInPixels[i] + ',' + standardDeviations[i] + '\n')
+endfor
+close_file(fileHandle)
+
+
+
+
+
+
+
+* crop_white_space *********************************************************************************
+imgOriginalOut := imgOriginal
+
+invert_image(imgOriginal, imgInverted)
+
+threshold(imgInverted, regOriginal, 128, 255)
+
+gen_contour_region_xld(regOriginal, contours, 'border')
+
+count_obj(contours, numContours)
+
+minX := 9999999
+maxX := 0
+minY := 9999999
+maxY := 0
+
+for i := 1 to numContours by 1
+    select_obj(contours, contour, i)
+    smallest_rectangle1_xld(contour, y1, x1, y2, x2)
+    if(x1 < minX)
+        minX := x1
+    endif
+    if(x2 > maxX)
+        maxX := x2
+    endif
+    if(y1 < minY)
+        minY := y1
+    endif
+    if(y2 > maxY)
+        maxY := y2
+    endif
+endfor
+
+if(minX < 0)
+    minX := 0
+endif
+if(minY < 0)
+    minY := 0
+endif
+
+tuple_round(minX, minX)
+tuple_round(maxX, maxX)
+tuple_round(minY, minY)
+tuple_round(maxY, maxY)
+
+crop_part (imgOriginalOut, imgOriginalOut, minY, minX, maxX - minX, maxY - minY)
+return ()
+
+
+
+
+* find_center_point *********************************************************************************
+
+get_image_size(imgOriginal, imageWidth, imageHeight)
+
+edges_sub_pix(imgOriginal, contours, 'canny', 1, 20, 40)
+
+fit_line_contour_xld(contours, 'tukey', -1, 0, 5, 2.0, y1, x1, y2, x2, yNormalVect, xNormalVect, distFromOrigin)
+
+select_lines(y1, x1, y2, x2, 'length', 'and', imageHeight * 0.2, 9999999, y1, x1, y2, x2)
+
+select_lines(y1, x1, y2, x2, 'phi', 'and', rad(100), rad(360), y1, x1, y2, x2)
+
+gen_region_line(regLines, y1, x1, y2, x2)
+
+numLines := |x1|
+
+if(numLines % 2 != 0)
+    numLines := numLines - 1
+endif
+
+xIntersections := []
+yIntersections := []
+
+for i := 0 to numLines - 1 by 2
+    intersection_lines(y1[i], x1[i], y2[i], x2[i], y1[i+1], x1[i+1], y2[i+1], x2[i+1], yIntersect, xIntersect, isOverlapping)
+    if(isOverlapping = 0)
+        xIntersections := [xIntersections, xIntersect]
+        yIntersections := [yIntersections, yIntersect]
+    endif
+endfor
+
+tuple_mean(xIntersections, centerX)
+tuple_mean(yIntersections, centerY)
+
+return ()
+
+
+
+
+* find_num_of_line_pairs *****************************************************************************
+
+numOfLinePairs := 0
+numOfTransitions := 0
+
+MIN_CONSEC_TO_ASSURE_CHANGE := 3
+
+previouslyOnWhite := 0
+previouslyOnBlack := 0
+waitingForWhite := 0
+waitingForBlack := 0
+
+if(circlePixValues[|circlePixValues|-1] > 128)
+    previouslyOnWhite := 1
+    previouslyOnBlack := 0
+else
+    previouslyOnBlack := 1
+    previouslyOnWhite := 0
+endif
+
+consecutiveWhitePix := 0
+consecutiveBlackPix := 0
+
+for i := 0 to |circlePixValues| - 1 by 1
+    if(waitingForWhite = 1 and circlePixValues[i] <= 128)
+        continue
+    elseif(waitingForBlack = 1 and circlePixValues[i] > 128)
+        continue
+    elseif(previouslyOnWhite = 1 and circlePixValues[i] > 128)
+        consecutiveWhitePix := consecutiveWhitePix + 1
+        if(consecutiveWhitePix >= MIN_CONSEC_TO_ASSURE_CHANGE)
+            numOfTransitions := numOfTransitions + 1
+            waitingForBlack := 1
+            waitingForWhite := 0
+        endif
+    elseif(previouslyOnBlack = 1 and circlePixValues[i] <= 128)
+        consecutiveBlackPix := consecutiveBlackPix + 1
+        if(consecutiveBlackPix >= MIN_CONSEC_TO_ASSURE_CHANGE)
+            numOfTransitions := numOfTransitions + 1
+            waitingForWhite := 1
+            waitingForBlack := 0
+        endif
+    elseif(previouslyOnWhite = 1 and circlePixValues[i] <= 128)
+        previouslyOnBlack := 1
+        previouslyOnWhite := 0
+        consecutiveBlackPix := 1
+        consecutiveWhitePix := 0
+        waitingForWhite := 0
+        waitingForBlack := 0
+    elseif(previouslyOnBlack = 1 and circlePixValues[i] > 128)
+        previouslyOnWhite := 1
+        previouslyOnBlack := 0
+        consecutiveWhitePix := 1
+        consecutiveBlackPix := 0
+        waitingForWhite := 0
+        waitingForBlack := 0
+    else
+        * should never get here
+    endif
+    
+endfor
+
+if((numOfTransitions % 2) != 0)
+    numOfTransitions := numOfTransitions - 1
+endif
+
+numOfLinePairs := numOfTransitions / 2
+
+return ()
+
+
+

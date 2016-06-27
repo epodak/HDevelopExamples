@@ -1,0 +1,37 @@
+* make_circular_test_pattern.hdev
+
+width := 5000
+height := 5000
+
+gen_image_const (Image, 'byte', width, height)
+
+centerRow := height/2.0
+centerCol := width/2.0
+
+TwoPi := rad(360.0)
+
+NumSpokes := 36
+
+distance_pp (0, 0, height, width, radius)
+step:=TwoPi/(2.0*NumSpokes)
+gen_empty_region (regions)
+gen_empty_obj (Contours)
+
+dev_update_off()
+
+for Index := 0 to TwoPi by 2.0*step   
+    p1Row:=centerRow+radius*cos(Index)
+    p1Col:=centerCol+radius*sin(Index)
+    p2Row:=centerRow+radius*cos(Index+step)
+    p2Col:=centerCol+radius*sin(Index+step)    
+    gen_region_polygon_filled (Region, [centerRow, p1Row, p2Row, centerRow], [centerCol, p1Col, p2Col, centerCol])    
+    gen_contour_polygon_xld (Contour, [centerRow, p1Row, p2Row, centerRow], [centerCol, p1Col, p2Col, centerCol])
+    concat_obj (regions, Region, regions)   
+    concat_obj (Contours, Contour, Contours)   
+
+endfor
+paint_xld (Contours, Image, Image, 255)
+
+write_image(Image, 'png', 0, 'circular_test_pattern.png')
+
+

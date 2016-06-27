@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hdevelop file_version="1.1" halcon_version="12.0.1">
+<procedure name="main">
+<interface/>
+<body>
+<c>* make_circular_test_pattern.hdev</c>
+<c></c>
+<l>width := 5000</l>
+<l>height := 5000</l>
+<c></c>
+<l>gen_image_const (Image, 'byte', width, height)</l>
+<c></c>
+<l>centerRow := height/2.0</l>
+<l>centerCol := width/2.0</l>
+<c></c>
+<l>TwoPi := rad(360.0)</l>
+<c></c>
+<l>NumSpokes := 36</l>
+<c></c>
+<l>distance_pp (0, 0, height, width, radius)</l>
+<l>step:=TwoPi/(2.0*NumSpokes)</l>
+<l>gen_empty_region (regions)</l>
+<l>gen_empty_obj (Contours)</l>
+<c></c>
+<l>dev_update_off()</l>
+<c></c>
+<l>for Index := 0 to TwoPi by 2.0*step   </l>
+<l>    p1Row:=centerRow+radius*cos(Index)</l>
+<l>    p1Col:=centerCol+radius*sin(Index)</l>
+<l>    p2Row:=centerRow+radius*cos(Index+step)</l>
+<l>    p2Col:=centerCol+radius*sin(Index+step)    </l>
+<l>    gen_region_polygon_filled (Region, [centerRow, p1Row, p2Row, centerRow], [centerCol, p1Col, p2Col, centerCol])    </l>
+<l>    gen_contour_polygon_xld (Contour, [centerRow, p1Row, p2Row, centerRow], [centerCol, p1Col, p2Col, centerCol])</l>
+<l>    concat_obj (regions, Region, regions)   </l>
+<l>    concat_obj (Contours, Contour, Contours)   </l>
+<c></c>
+<l>endfor</l>
+<l>paint_xld (Contours, Image, Image, 255)</l>
+<c></c>
+<l>write_image(Image, 'png', 0, 'circular_test_pattern.png')</l>
+<c></c>
+<c></c>
+<c></c>
+</body>
+<docu id="main">
+<parameters/>
+</docu>
+</procedure>
+</hdevelop>
