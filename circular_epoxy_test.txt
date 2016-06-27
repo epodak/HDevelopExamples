@@ -1,0 +1,222 @@
+* circular_epoxy_test.hdev
+
+* close any previously open windows
+dev_close_window()
+
+* open image
+read_image(imgOriginal, 'pass1.png')
+
+* resize image so it fits on the screen (for convenience)
+hom_mat2d_identity(scaleMatrix)
+hom_mat2d_scale_local(scaleMatrix, 0.45, 0.45, scaleMatrix)
+affine_trans_image(imgOriginal, imgOriginal, scaleMatrix, 'bilinear', 'true')
+
+* get the image size and and open a window, we can use this for all images since they will all be the same size
+get_image_size(imgOriginal, imageWidth, imageHeight)
+dev_open_window(100, 400, imageWidth, imageHeight, 'black', windowHandle)
+
+* show original image for reference
+dev_display(imgOriginal)
+
+* Otsu threshold
+binary_threshold(imgOriginal, regThresh, 'max_separability', 'light', usedThreshold)
+
+* find contours
+gen_contour_region_xld(regThresh, contours, 'border_holes')
+
+* select_shape_xld(contours, bigEnoughContours, 'area', 'and', 300, 9999999)
+* select_shape_xld(bigEnoughContours, circularContours, 'circularity', 'and', 0.8, 1.0)
+
+select_shape_xld(contours, circularContours, ['area', 'circularity'], 'and', [300, 0.8], [9999999, 1.0])
+
+* count number of contours and declare an empty array of contours to fill in next loop
+* count_obj(contours, numContours)
+* gen_empty_obj(bigEnoughContours)
+
+* get the contours that are big enough to be epoxy circles
+* for i := 1 to numContours by 1
+*     select_obj(contours, contour, i)
+    
+*     area_center_xld(contour, area, centerY, centerX, pointOrder)
+    
+*     if(area > 300)
+*         concat_obj(bigEnoughContours, contour, bigEnoughContours)
+*     endif
+    
+* endfor
+
+* count number of contours and declare an empty array of contours to fill in next loop
+* count_obj(bigEnoughContours, numBigEnoughContours)
+* gen_empty_obj(circularContours)
+
+* get the contours that are close to a circle in shape
+* for i := 1 to numBigEnoughContours by 1
+*     select_obj(bigEnoughContours, bigEnoughContour, i)
+    
+*     circularity_xld(bigEnoughContour, circularity)
+    
+*     if(circularity > 0.8)
+*         concat_obj(circularContours, bigEnoughContour, circularContours)
+*     endif
+    
+* endfor
+
+* break out array of two contours into separate variables
+select_obj(circularContours, circularContour1, 1)
+select_obj(circularContours, circularContour2, 2)
+
+* find the center of the two circular contours
+area_center_xld(circularContour1, area1, centerY1, centerX1, pointOrder1)
+area_center_xld(circularContour2, area2, centerY2, centerX2, pointOrder2)
+
+* declare two empty contours, outer and inner
+gen_empty_obj(outerContour)
+gen_empty_obj(innerContour)
+
+* after checking which is bigger, assign the two contours to the outer and inner contour variables
+if(area1 > area2)
+    copy_obj(circularContour1, outerContour, 1, 1)
+    copy_obj(circularContour2, innerContour, 1, 1)
+else
+    copy_obj(circularContour1, innerContour, 1, 1)
+    copy_obj(circularContour2, outerContour, 1, 1)
+endif
+
+* find the center of the circles
+centerX := (centerX1 + centerX2) / 2
+centerY := (centerY1 + centerY2) / 2
+
+* declare tuples for the point pairs inner x & y, outer x & y, and distance betweem
+innerPointX := []
+innerPointY := []
+outerPointX := []
+outerPointY := []
+distanceBetween := []
+
+* for each degree all the way around the circle
+for currentDegree := 0.0 to 359.0 by 5.0
+    
+    * start by re-assigning the current point to the center of the circles
+    currentX := centerX
+    currentY := centerY
+    
+    * check if we are still inside the inner circular contour
+    test_xld_point(innerContour, currentY, currentX, isInsideInner)
+    
+    * while we are still inside the inner circular contour . . .
+    while(isInsideInner = 1)
+        
+        * step out one more pixel
+        currentX := currentX + sin(currentDegree * (3.14159 / 180.0))
+        currentY := currentY + cos(currentDegree * (3.14159 / 180.0))
+        
+        * and check if we are still inside the inner circular contour . . .
+        test_xld_point(innerContour, currentY, currentX, isInsideInner)
+    endwhile
+    
+    * once we have reached the edge of the inner circular contour, record the point in our point pair tuples
+    innerPointX := [innerPointX, currentX]
+    innerPointY := [innerPointY, currentY]
+    
+    * now check if we are still inside the outer circular contour
+    test_xld_point(outerContour, currentY, currentX, isInsideOuter)
+    
+    * while we are still inside the outer circular contour . . .
+    while(isInsideOuter = 1)
+        
+        * step out one more pixel
+        currentX := currentX + sin(currentDegree * (3.14159 / 180.0))
+        currentY := currentY + cos(currentDegree * (3.14159 / 180.0))
+        
+        * and check if we are still inside the outer circular contour
+        test_xld_point(outerContour, currentY, currentX, isInsideOuter)
+    endwhile
+    
+    * once we have reached the edge of the outer circular contour, record the point in our point pair tuples
+    outerPointX := [outerPointX, currentX]
+    outerPointY := [outerPointY, currentY]
+    
+endfor
+
+* for each point pair . . .
+for i := 0 to |innerPointX| - 1 by 1
+    
+    * get the distance between the points
+    distance_pp(innerPointY[i], innerPointX[i], outerPointY[i], outerPointX[i], distance)
+    
+    * and append to our tuple array
+    distanceBetween := [distanceBetween, distance]
+    
+endfor
+
+* make a 2nd window and a blank image to draw our point pairs on
+dev_open_window(150, 550, imageWidth, imageHeight, 'black', windowHandle2)
+gen_image_const(imgPointPairs, 'byte', imageWidth, imageHeight)
+dev_set_color('green')
+dev_display(imgPointPairs)
+
+* declare a blank region to draw points on
+gen_empty_region(regPointPairs)
+
+* for each point pair . . .
+for i := 0 to |innerPointX| - 1 by 1
+    
+    * draw a small green circle at the inner point pair
+    innerY := innerPointY[i]
+    innerX := innerPointX[i]
+    radius := 2
+    
+    *disp_circle(windowHandle2, innerY, innerX, radius)
+    gen_circle(regPointPairs, innerY, innerX, radius)
+    
+    * draw a small green circle at the outer point pair
+    outerY := outerPointY[i]
+    outerX := outerPointX[i]
+    
+    *disp_circle(windowHandle2, outerY, outerX, radius)
+    gen_circle(regPointPairs, outerY, outerX, radius)
+     
+endfor
+
+* declare variables for min, max, and average distance between point pairs
+minDistanceBetween := 99999999.9
+maxDistanceBetween := 0.0
+averageDistanceBetween := 0.0
+
+* for each point pair . . .
+for i := 0 to |innerPointX| - 1 by 1
+    
+    * update if we have a new min
+    if(distanceBetween[i] < minDistanceBetween)
+        minDistanceBetween := distanceBetween[i]
+    endif
+    
+    * update if we have a new max
+    if(distanceBetween[i] > maxDistanceBetween)
+        maxDistanceBetween := distanceBetween[i]
+    endif
+    
+    * add distance between to total
+    averageDistanceBetween := averageDistanceBetween + distanceBetween[i]
+    
+endfor
+
+* calculte average distance between and difference between min and max
+averageDistanceBetween := averageDistanceBetween / |distanceBetween|
+differenceBetweenMinAndMaxDistanceBetween := maxDistanceBetween - minDistanceBetween
+
+* write results in top left corner
+set_display_font(windowHandle2, 18, 'mono', 'true', 'false')
+disp_message(windowHandle2, 'min distance between = ' + minDistanceBetween, 'image', 5, 10, 'green', 'false')
+disp_message(windowHandle2, 'max distance between = ' + maxDistanceBetween, 'image', 30, 10, 'green', 'false')
+disp_message(windowHandle2, 'difference between min and max distance between = ' + differenceBetweenMinAndMaxDistanceBetween, 'image', 55, 10, 'green', 'false')
+disp_message(windowHandle2, 'averageDistanceBetween = ' + averageDistanceBetween, 'image', 80, 10, 'green', 'false')
+
+
+
+
+
+
+
+
+
